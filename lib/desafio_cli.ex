@@ -13,8 +13,7 @@ defmodule DesafioCli do
   end
 
   def loop(store) do
-    IO.puts("Enter your commands")
-    raw = IO.gets("> ")
+   raw = IO.gets("> ")
    newStore= process_command(store,raw)
    loop(newStore)
   end

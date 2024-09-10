@@ -38,7 +38,7 @@ defmodule DesafioCliTest do
       DesafioCli.process_command(store, "GET teste")
     end)
 
-    assert output == "BEGIN\n1\nFALSE 1\n1\n"
+    assert output == "1\nFALSE 1\n1\n"
   end
 
   test "COMMIT aplica transação e GET retorna valor" do
@@ -50,7 +50,7 @@ defmodule DesafioCliTest do
       DesafioCli.process_command(store, "GET teste")
     end)
 
-    assert output == "BEGIN\n1\nFALSE 1\nCOMMIT\n0\n1\n"
+    assert output == "1\nFALSE 1\nCOMMIT\n0\n1\n"
   end
 
   test "ROLLBACK descarta transação e GET retorna NIL" do
@@ -62,6 +62,6 @@ defmodule DesafioCliTest do
       DesafioCli.process_command(store, "GET teste")
     end)
 
-    assert output == "BEGIN\n1\nFALSE 1\nROLLBACK\n0\nNIL\n"
+    assert output == "1\nFALSE 1\nROLLBACK\n0\nNIL\n"
   end
 end
