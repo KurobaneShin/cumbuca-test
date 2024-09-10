@@ -11,45 +11,34 @@ defmodule KV do
     {updated_kv_store, "#{count}"}
   end
 
-  def commit(%KV{in_transaction: true, transaction_logs: [current_log | remaining_logs]} = kv) do
-    new_logs =
-      if remaining_logs != [] do
-        []
-      else
-        [apply_log_to_log(current_log, hd(remaining_logs)) | tl(remaining_logs)]
-      end
-
-    new_kv = %{kv | transaction_logs: new_logs}
-    transaction_level = length(new_logs)
-
-    if transaction_level == 0 do
-      final_store = apply_log_to_store(new_kv.store, current_log)
-      {%{new_kv | store: final_store, in_transaction: false}, "COMMIT\n0"}
-    else
-      {new_kv, "COMMIT\n#{transaction_level}"}
-    end
+  def commit(%KV{in_transaction: true, transaction_logs: [current_log]} = kv_store) do
+    new_store = apply_transaction_logs(current_log, kv_store.store)
+    {%{kv_store | store: new_store, transaction_logs: [[]], in_transaction: false}, "0"}
   end
 
-  defp apply_log_to_log(current_log, next_log) do
-    Enum.reverse(current_log) ++ next_log
+  def commit(%KV{in_transaction: true, transaction_logs: [current_log | rest_logs]} = kv_store) do
+    [next_log | older_logs] = rest_logs
+    merged_log = current_log ++ next_log
+    new_depth = length(rest_logs)
+
+    {%{kv_store | transaction_logs: [merged_log | older_logs]}, "#{new_depth}"}
   end
 
-  # Aplica o log diretamente na store
-  defp apply_log_to_store(store, log) do
+defp apply_transaction_logs(log, store) do
     Enum.reduce(log, store, fn
       {:set, key, value}, acc -> Map.put(acc, key, value)
       {:delete, key}, acc -> Map.delete(acc, key)
     end)
   end
 
-  def rollback(%KV{in_transaction: true, transaction_logs: [_log]} = kv_store) do
+ def rollback(%KV{in_transaction: true, transaction_logs: [_log]} = kv_store) do
     updated_kv_store = %{kv_store | transaction_logs: [[]], in_transaction: false}
-    {updated_kv_store, "ROLLBACK\n0"}
+    {updated_kv_store, "0"}
   end
 
   def rollback(%KV{in_transaction: true, transaction_logs: [_log | rest]} = kv_store) do
     updated_kv_store = %{kv_store | transaction_logs: rest}
-    {updated_kv_store, "ROLLBACK\n#{length(rest)}"}
+    {updated_kv_store, "#{length(rest)}"}
   end
 
   def set(%KV{in_transaction: true, transaction_logs: logs} = kv_store, key, value) do
@@ -74,17 +63,23 @@ defmodule KV do
   end
 
   def get(%KV{in_transaction: true, transaction_logs: logs} = kv_store, key) do
-    case Enum.find_value(logs, fn log ->
-      case Enum.find(log, fn {op, k, _v} -> op == :set and k == key end) do
-        {:set, _key, value} -> value
-        _ -> nil
-      end
-    end) do
+    case find_in_logs(logs, key) do
       nil -> Map.get(kv_store.store, key)
       value -> value
     end
   end
+
   def get(%KV{store: store}, key) do
     Map.get(store, key)
+  end
+
+  defp find_in_logs(logs, key) do
+    Enum.find_value(logs, fn log ->
+      Enum.find_value(log, fn
+        {:set, ^key, value} -> value
+        {:delete, ^key} -> nil
+        _ -> nil
+      end)
+    end)
   end
 end
